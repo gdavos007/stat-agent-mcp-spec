@@ -47,7 +47,10 @@ def test_row_limits_must_be_positive(environment_name: str, value: str) -> None:
 
 
 def test_default_limit_must_not_exceed_hard_limit() -> None:
-    with pytest.raises(ValidationError, match="default row limit must not exceed hard row limit") as caught:
+    with pytest.raises(
+        ValidationError,
+        match="default row limit must not exceed hard row limit",
+    ) as caught:
         load_settings(
             valid_environment(
                 STAT_MCP_DEFAULT_ROW_LIMIT="1001",
