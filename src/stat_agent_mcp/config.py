@@ -63,4 +63,3 @@ def _positive_integer(environ: Mapping[str, str], name: str, *, default: int) ->
         return int(raw_value)
     except ValueError as error:
         raise ValueError(f"environment variable {name} must be an integer") from error
-

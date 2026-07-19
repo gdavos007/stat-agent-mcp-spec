@@ -14,9 +14,7 @@ def test_sqlite_connector_lists_seeded_tables(demo_database_path: Path) -> None:
 
     tables = connector.list_tables()
 
-    assert [(table.name, table.table_type) for table in tables] == [
-        ("experiment_results", "table")
-    ]
+    assert [(table.name, table.table_type) for table in tables] == [("experiment_results", "table")]
     assert not hasattr(connector, "execute")
 
 

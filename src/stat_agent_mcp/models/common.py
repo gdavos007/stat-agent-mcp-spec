@@ -14,4 +14,3 @@ class ToolError(BaseModel):
     code: str
     message: str
     retryable: bool
-

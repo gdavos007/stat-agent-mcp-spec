@@ -28,4 +28,3 @@ class ListTablesSuccess(BaseModel):
 
 
 ListTablesResponse = Annotated[ListTablesSuccess | ToolError, Field(discriminator="status")]
-

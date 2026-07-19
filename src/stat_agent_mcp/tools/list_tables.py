@@ -4,7 +4,7 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-from stat_agent_mcp.connectors.base import DatabaseConnector
+from stat_agent_mcp.connectors.base import TableDiscoveryConnector
 from stat_agent_mcp.errors import StatAgentError
 from stat_agent_mcp.models.common import ToolError
 from stat_agent_mcp.models.tables import ListTablesResponse, ListTablesSuccess, TableInfo
@@ -21,7 +21,7 @@ so row-limit and null-handling behavior do not apply. It cannot list columns or 
 
 def register_list_tables(
     server: FastMCP,
-    connector: DatabaseConnector,
+    connector: TableDiscoveryConnector,
     connection_name: str,
 ) -> None:
     """Register the list_tables tool with its connector dependencies."""
@@ -54,4 +54,3 @@ def register_list_tables(
                 TableInfo(name=table.name, table_type=table.table_type) for table in tables
             ),
         )
-

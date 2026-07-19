@@ -24,15 +24,17 @@ def settings_for(database_path: Path) -> Settings:
     )
 
 
-def test_server_registers_exactly_list_tables(demo_database_path: Path) -> None:
+def test_server_registers_list_tables_with_structured_contract(demo_database_path: Path) -> None:
     server = create_server(settings_for(demo_database_path))
 
     tools = asyncio.run(server.list_tools())
 
-    assert [tool.name for tool in tools] == ["list_tables"]
-    assert tools[0].inputSchema["properties"] == {}
-    assert tools[0].outputSchema is not None
-    assert "row-limit and null-handling behavior do not apply" in (tools[0].description or "")
+    list_tables_tool = next(tool for tool in tools if tool.name == "list_tables")
+    assert list_tables_tool.inputSchema["properties"] == {}
+    assert list_tables_tool.outputSchema is not None
+    assert "row-limit and null-handling behavior do not apply" in (
+        list_tables_tool.description or ""
+    )
 
 
 def test_list_tables_returns_structured_safe_metadata(demo_database_path: Path) -> None:

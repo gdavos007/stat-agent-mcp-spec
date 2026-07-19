@@ -14,4 +14,3 @@ def demo_database_path(tmp_path: Path) -> Iterator[Path]:
     database_path = tmp_path / "demo.sqlite3"
     create_demo_database(database_path)
     yield database_path
-
