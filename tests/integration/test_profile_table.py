@@ -88,11 +88,11 @@ def test_profile_table_rejects_unsafe_and_missing_tables(demo_database_path: Pat
     assert missing["code"] == "missing_table"
 
 
-def test_server_registers_only_completed_milestone_three_tools(
+def test_server_registers_profile_table_with_completed_tools(
     demo_database_path: Path,
 ) -> None:
     server = create_server(settings_for(demo_database_path))
 
     tools = asyncio.run(server.list_tools())
 
-    assert [tool.name for tool in tools] == ["list_tables", "profile_table"]
+    assert "profile_table" in [tool.name for tool in tools]

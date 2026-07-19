@@ -11,9 +11,9 @@ import pandas as pd
 from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
 
 from stat_agent_mcp.connectors.base import ColumnMetadata
+from stat_agent_mcp.models.common import ExtractionInfo
 from stat_agent_mcp.models.profiles import (
     ColumnProfile,
-    ExtractionInfo,
     NumericSummary,
     ProfileValue,
     SuggestedRole,

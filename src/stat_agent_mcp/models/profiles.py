@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from stat_agent_mcp.models.common import ToolError
+from stat_agent_mcp.models.common import ExtractionInfo, ToolError
 
 ProfileValue = str | int | float | bool
 
@@ -61,22 +61,6 @@ class ColumnProfile(BaseModel):
     example_values: tuple[ProfileValue, ...]
     numeric_summary: NumericSummary | None
     top_values: tuple[ValueFrequency, ...]
-
-
-class ExtractionInfo(BaseModel):
-    """Public audit metadata for the bounded profile extraction."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    requested_limit: int
-    effective_limit: int
-    hard_limit: int
-    rows_examined: int
-    truncated: bool
-    sampled: bool
-    sampling_method: Literal["none"]
-    random_seed: None
-    order_columns: tuple[str, ...]
 
 
 class ProfileTableInput(BaseModel):

@@ -1,0 +1,109 @@
+"""Orchestration for validated, bounded statistical testing."""
+
+from typing import Final
+
+from stat_agent_mcp.errors import IncompatibleColumnTypeError, MissingColumnError
+from stat_agent_mcp.models.common import ExtractionInfo
+from stat_agent_mcp.models.statistical_tests import (
+    NumericGroupSummary,
+    WelchTestInput,
+    WelchTestResult,
+)
+from stat_agent_mcp.services.extraction import ExtractionService
+from stat_agent_mcp.statistics.validation import prepare_independent_samples
+from stat_agent_mcp.statistics.welch import run_welch_t_test
+
+_NUMERIC_DATABASE_TYPES: Final = ("INT", "REAL", "FLOA", "DOUB", "NUM", "DEC")
+
+
+class TestingService:
+    """Coordinate safe extraction, validation, and approved statistical functions."""
+
+    def __init__(self, extraction_service: ExtractionService) -> None:
+        self._extraction_service = extraction_service
+
+    def run_welch(self, request: WelchTestInput) -> WelchTestResult:
+        """Run the MVP Welch test against explicitly selected columns and groups."""
+        description = self._extraction_service.describe_table(request.table)
+        columns = {column.name: column for column in description.columns}
+        outcome_metadata = columns.get(request.outcome_column)
+        if outcome_metadata is None or request.grouping_column not in columns:
+            raise MissingColumnError
+        if not any(
+            token in outcome_metadata.database_type.upper() for token in _NUMERIC_DATABASE_TYPES
+        ):
+            raise IncompatibleColumnTypeError
+
+        extraction = self._extraction_service.extract_from_description(
+            description,
+            (request.outcome_column, request.grouping_column),
+            request.max_rows,
+        )
+        prepared = prepare_independent_samples(
+            extraction.frame,
+            request.outcome_column,
+            request.grouping_column,
+            request.group_values,
+        )
+        calculation = run_welch_t_test(prepared)
+        metadata = extraction.metadata
+        warnings: list[str] = []
+        if metadata.truncated:
+            warnings.append(
+                "The result uses a deterministic first-N extract and may not represent "
+                "the full table."
+            )
+        if min(len(prepared.group_1), len(prepared.group_2)) < 30:
+            warnings.append(
+                "At least one group has fewer than 30 observations; distribution shape "
+                "and outliers require particular attention."
+            )
+
+        return WelchTestResult(
+            null_hypothesis="The two population means are equal.",
+            alternative_hypothesis="The two population means differ.",
+            alpha=request.alpha,
+            statistic=calculation.statistic,
+            p_value=calculation.p_value,
+            significant=calculation.p_value < request.alpha,
+            group_summaries=(
+                NumericGroupSummary(
+                    group_value=request.group_values[0],
+                    sample_size=calculation.group_1.sample_size,
+                    mean=calculation.group_1.mean,
+                    standard_deviation=calculation.group_1.standard_deviation,
+                ),
+                NumericGroupSummary(
+                    group_value=request.group_values[1],
+                    sample_size=calculation.group_2.sample_size,
+                    mean=calculation.group_2.mean,
+                    standard_deviation=calculation.group_2.standard_deviation,
+                ),
+            ),
+            effect_size=calculation.hedges_g,
+            effect_size_direction="group_1 minus group_2",
+            assumptions=(
+                "Observations are independent within and between groups.",
+                "The outcome is continuous numeric data.",
+                "Each group is approximately normal or sufficiently large for robust inference.",
+                "Extreme outliers do not dominate either sample.",
+                "Statistical significance does not establish causality or business importance.",
+            ),
+            warnings=tuple(warnings),
+            rows_examined=metadata.rows_examined,
+            rows_included=prepared.exclusions.rows_included,
+            null_rows_excluded=prepared.exclusions.null_rows_excluded,
+            invalid_rows_excluded=prepared.exclusions.invalid_rows_excluded,
+            unselected_group_rows_excluded=(prepared.exclusions.unselected_group_rows_excluded),
+            extraction=ExtractionInfo(
+                requested_limit=metadata.requested_limit,
+                effective_limit=metadata.effective_limit,
+                hard_limit=metadata.hard_limit,
+                rows_examined=metadata.rows_examined,
+                truncated=metadata.truncated,
+                sampled=metadata.sampled,
+                sampling_method=metadata.sampling_method,
+                random_seed=metadata.random_seed,
+                order_columns=metadata.order_columns,
+            ),
+        )

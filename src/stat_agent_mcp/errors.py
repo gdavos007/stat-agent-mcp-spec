@@ -61,3 +61,57 @@ class ExtractionLimitError(StatAgentError):
 
     def __init__(self) -> None:
         super().__init__("The requested extraction limit is invalid.")
+
+
+class IncompatibleColumnTypeError(StatAgentError):
+    """Raised when a selected outcome has an incompatible declared or observed type."""
+
+    code = "incompatible_column_type"
+
+    def __init__(self) -> None:
+        super().__init__("A selected column has an incompatible data type for this test.")
+
+
+class InvalidGroupValuesError(StatAgentError):
+    """Raised when exactly two distinct, populated groups were not provided."""
+
+    code = "invalid_group_values"
+
+    def __init__(self) -> None:
+        super().__init__("Exactly two distinct group values with observations are required.")
+
+
+class InvalidOutcomeValueError(StatAgentError):
+    """Raised when a non-null outcome value is not finite numeric data."""
+
+    code = "invalid_outcome_value"
+
+    def __init__(self) -> None:
+        super().__init__("The outcome contains a non-null value that is not finite numeric data.")
+
+
+class InsufficientObservationsError(StatAgentError):
+    """Raised when a statistical group has too few usable observations."""
+
+    code = "insufficient_observations"
+
+    def __init__(self) -> None:
+        super().__init__("Each group requires at least two usable observations.")
+
+
+class DegenerateDataError(StatAgentError):
+    """Raised when the selected samples cannot produce a meaningful statistic."""
+
+    code = "degenerate_data"
+
+    def __init__(self) -> None:
+        super().__init__("The selected samples have insufficient variation for this test.")
+
+
+class UnsupportedTestError(StatAgentError):
+    """Raised when a requested statistical test is not implemented in the current slice."""
+
+    code = "unsupported_test"
+
+    def __init__(self) -> None:
+        super().__init__("The requested statistical test is not supported.")

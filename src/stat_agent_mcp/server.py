@@ -6,12 +6,14 @@ from stat_agent_mcp.config import Settings, load_settings
 from stat_agent_mcp.connectors.sqlite import SQLiteConnector
 from stat_agent_mcp.services.extraction import ExtractionService
 from stat_agent_mcp.services.profiling import ProfilingService
+from stat_agent_mcp.services.testing import TestingService
 from stat_agent_mcp.tools.list_tables import register_list_tables
 from stat_agent_mcp.tools.profile_table import register_profile_table
+from stat_agent_mcp.tools.run_test import register_run_test
 
 
 def create_server(settings: Settings | None = None) -> FastMCP:
-    """Compose the MCP server and its single completed table-discovery tool."""
+    """Compose the MCP server and its completed MVP tool slices."""
     resolved_settings = load_settings() if settings is None else settings
     server = FastMCP(name=resolved_settings.connection_name)
     connector = SQLiteConnector(resolved_settings.sqlite_path())
@@ -23,6 +25,8 @@ def create_server(settings: Settings | None = None) -> FastMCP:
     )
     profiling_service = ProfilingService(extraction_service)
     register_profile_table(server, profiling_service, resolved_settings.connection_name)
+    testing_service = TestingService(extraction_service)
+    register_run_test(server, testing_service)
     return server
 
 
