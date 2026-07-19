@@ -49,6 +49,20 @@ def welch_arguments(**overrides: object) -> dict[str, object]:
     return arguments
 
 
+def proportion_arguments(**overrides: object) -> dict[str, object]:
+    arguments: dict[str, object] = {
+        "test_id": "two_proportion_z_test",
+        "table": "experiment_results",
+        "outcome_column": "converted",
+        "grouping_column": "variant",
+        "group_values": ["A", "B"],
+        "success_value": 1,
+        "alpha": 0.05,
+    }
+    arguments.update(overrides)
+    return arguments
+
+
 def test_run_test_returns_auditable_welch_result(demo_database_path: Path) -> None:
     server = create_server(settings_for(demo_database_path))
 
@@ -86,10 +100,53 @@ def test_run_test_warns_when_first_n_extraction_is_truncated(
     assert any("first-N" in warning for warning in result["warnings"])
 
 
+def test_run_test_returns_auditable_two_proportion_result(
+    demo_database_path: Path,
+) -> None:
+    server = create_server(settings_for(demo_database_path))
+
+    response = structured_result(server, proportion_arguments())
+    result = response["result"]
+
+    assert response["status"] == "success"
+    assert result["test_id"] == "two_proportion_z_test"
+    assert result["success_value"] == 1
+    assert result["effect_size_name"] == "risk_difference"
+    assert result["effect_size"] == pytest.approx((6 / 19) - (10 / 19))
+    assert [summary["successes"] for summary in result["group_summaries"]] == [6, 10]
+    assert [summary["sample_size"] for summary in result["group_summaries"]] == [19, 19]
+    assert result["rows_examined"] == 40
+    assert result["rows_included"] == 38
+    assert result["null_rows_excluded"] == 2
+    assert result["invalid_rows_excluded"] == 0
+    assert any("borderline" in warning.lower() for warning in result["warnings"])
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_code"),
     [
-        ({"test_id": "two_proportion_z_test"}, "unsupported_test"),
+        ({"success_value": None}, "invalid_success_value"),
+        ({"success_value": 2}, "invalid_success_value"),
+        ({"outcome_column": "account_balance"}, "invalid_binary_outcome"),
+    ],
+)
+def test_two_proportion_returns_structured_errors(
+    demo_database_path: Path,
+    overrides: dict[str, object],
+    expected_code: str,
+) -> None:
+    server = create_server(settings_for(demo_database_path))
+
+    response = structured_result(server, proportion_arguments(**overrides))
+
+    assert response["status"] == "error"
+    assert response["code"] == expected_code
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_code"),
+    [
+        ({"test_id": "unknown_test"}, "unsupported_test"),
         ({"outcome_column": "missing_column"}, "missing_column"),
         ({"group_values": ["A", "A"]}, "invalid_group_values"),
         ({"alpha": 1.5}, "invalid_request"),
@@ -118,5 +175,7 @@ def test_server_registers_exactly_three_mvp_tools(demo_database_path: Path) -> N
     run_test_tool = tools[2]
     assert run_test_tool.outputSchema is not None
     assert "Welch" in (run_test_tool.description or "")
+    assert "two-proportion" in (run_test_tool.description or "").lower()
+    assert "success value" in (run_test_tool.description or "").lower()
     assert "null" in (run_test_tool.description or "").lower()
     assert "hard row limit" in (run_test_tool.description or "").lower()

@@ -96,7 +96,7 @@ class InsufficientObservationsError(StatAgentError):
     code = "insufficient_observations"
 
     def __init__(self) -> None:
-        super().__init__("Each group requires at least two usable observations.")
+        super().__init__("The selected groups do not contain enough usable observations.")
 
 
 class DegenerateDataError(StatAgentError):
@@ -115,3 +115,21 @@ class UnsupportedTestError(StatAgentError):
 
     def __init__(self) -> None:
         super().__init__("The requested statistical test is not supported.")
+
+
+class InvalidBinaryOutcomeError(StatAgentError):
+    """Raised when the selected proportion outcome is not exactly binary."""
+
+    code = "invalid_binary_outcome"
+
+    def __init__(self) -> None:
+        super().__init__("The selected outcome must contain exactly two non-null values.")
+
+
+class InvalidSuccessValueError(StatAgentError):
+    """Raised when the explicit success value is absent or does not match the outcome."""
+
+    code = "invalid_success_value"
+
+    def __init__(self) -> None:
+        super().__init__("An explicit success value matching the binary outcome is required.")
