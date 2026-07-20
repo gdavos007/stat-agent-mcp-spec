@@ -67,6 +67,30 @@ stat-agent-mcp
 The process waits for MCP messages on stdin. Logs belong on stderr; stdout is reserved for MCP
 protocol traffic. Use `Ctrl-C` to stop a manually launched server.
 
+## Railway deployment
+
+The included [railway.toml](railway.toml) starts the installed Streamable HTTP entry point:
+
+```text
+stat-agent-mcp-http
+```
+
+Configure these Railway variables:
+
+| Variable | Recommended value | Notes |
+| --- | --- | --- |
+| `STAT_MCP_CONNECTION_NAME` | `railway_demo` | Safe public label returned to MCP clients. |
+| `STAT_MCP_SQLITE_PATH` | `/tmp/stat-agent-mcp/demo.sqlite3` | Ephemeral Option A demo database location. |
+| `PORT` | Railway-provided | The application reads this directly; do not interpolate it in the start command. |
+
+On HTTP startup, an absent SQLite database is generated deterministically in a temporary file beside
+the configured target, validated, and atomically published. Parent directories are created as
+needed. A valid existing database is reused. Railway's `/tmp` storage is ephemeral, so this option
+is intended for reproducible demonstrations rather than persistent user data.
+
+The Streamable HTTP MCP endpoint is `/mcp`. This milestone does not provide authentication or a
+health-check route; do not expose the service as a trusted production endpoint yet.
+
 ## MCP client configuration
 
 MCP clients use different configuration locations, but a typical stdio entry looks like this:
@@ -238,13 +262,14 @@ counted as unselected-group exclusions.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `STAT_MCP_CONNECTION_NAME` | No | `demo_sqlite` | Safe public label returned to MCP clients. |
-| `STAT_MCP_SQLITE_PATH` | Yes | none | Internal path to an existing SQLite database. |
+| `STAT_MCP_SQLITE_PATH` | Yes | none | Internal SQLite path; HTTP startup creates demo data when it is absent. |
 | `STAT_MCP_DEFAULT_ROW_LIMIT` | No | `1000` | Limit used when a tool request omits `max_rows`. |
 | `STAT_MCP_HARD_ROW_LIMIT` | No | `10000` | Absolute maximum rows retained by an extraction. |
 
-Both limits must be positive, and the default cannot exceed the hard limit. The server opens only an
-existing database; a missing path produces a structured connection failure and does not create a
-file.
+Both limits must be positive, and the default cannot exceed the hard limit. The stdio entry point
+still requires an existing database and never bootstraps one. The HTTP entry point validates and
+reuses an existing SQLite database or atomically generates the deterministic demo database when the
+configured path is absent.
 
 The connector request contract reserves an optional timeout value for future engines. SQLite query
 timeout enforcement is limited in this MVP and is not exposed as a public configuration setting.
@@ -273,7 +298,8 @@ Responsibilities are deliberately separated:
 - `statistics/` accepts pandas or ordinary Python values and imports no database or MCP objects.
 - `models/` defines structured public contracts.
 - `tools/` translates domain results and safe errors at the MCP boundary.
-- `scripts/` creates deterministic demonstration fixtures and is not server-facing.
+- `connectors/demo_sqlite.py` owns deterministic SQLite demo generation and atomic HTTP bootstrap.
+- `scripts/create_demo_db.py` is a thin local CLI around the installed generator.
 - `tests/` contains unit and seeded SQLite integration coverage.
 
 A future database engine should require a connector implementation, registration/configuration,
@@ -322,8 +348,8 @@ commit or push changes unless the repository owner explicitly requests it.
 - No confidence intervals are returned in the MVP.
 - No one-sided alternatives, paired tests, regression, ANOVA, chi-square, Mann-Whitney U, or other
   procedures are implemented.
-- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, or deployment
-  infrastructure is included.
+- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, authentication,
+  persistent deployment storage, or deployment health endpoint is included.
 
 Statistical significance is evidence against a null hypothesis under stated assumptions. It does not
 establish causality, practical importance, or a business decision.
@@ -335,11 +361,10 @@ This repository was developed as a sequence of reviewed vertical slices with Cod
 | Area | Contribution record |
 | --- | --- |
 | Architecture | Codex proposed the connector boundary, synchronous SQLite MVP, deterministic first-N extraction, structured errors, profiling rules, and statistical module separation in response to [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md). |
-| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, and package metadata. |
+| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, package metadata, and Railway HTTP bootstrap configuration. |
 | Generated tests | Codex generated the unit and seeded SQLite integration tests, including maintained-library references, effect sizes, limits, exclusions, invalid inputs, MCP contracts, and secret safety. |
 | Human decisions | The human developer supplied and approved the product specification and repository rules, selected the milestone sequence, reviewed each milestone handoff, and explicitly authorized commits and pushes. |
 | Important prompts | The initial architecture task is preserved in [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md); implementation followed approved Milestones 1–6. Git history preserves the resulting development checkpoints. |
 
 No credentials, authentication tokens, private Codex transcripts, or fabricated session identifiers
 are stored in this record.
-

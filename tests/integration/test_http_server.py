@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import SecretStr
 
 from stat_agent_mcp.config import Settings
+from stat_agent_mcp.http_server import create_http_server
 from stat_agent_mcp.server import create_server
 
 
@@ -38,3 +39,19 @@ def test_http_server_reuses_the_existing_tool_composition(
         "profile_table",
         "run_test",
     ]
+
+
+def test_http_startup_bootstraps_an_absent_demo_database(tmp_path: Path) -> None:
+    database_path = tmp_path / "railway" / "demo.sqlite3"
+    settings = Settings(
+        connection_name="railway_demo",
+        sqlite_path_secret=SecretStr(str(database_path)),
+        default_row_limit=100,
+        hard_row_limit=1_000,
+    )
+
+    server = create_http_server(settings, port=54321)
+
+    assert database_path.is_file()
+    assert server.settings.host == "0.0.0.0"  # noqa: S104
+    assert server.settings.port == 54321
