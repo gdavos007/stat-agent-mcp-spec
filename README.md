@@ -86,9 +86,9 @@ The public readiness endpoint is `GET http://127.0.0.1:8000/health`. MCP request
 
 ## Railway deployment
 
-The included [railway.toml](railway.toml) explicitly installs the package during Railway's build,
-then starts the Streamable HTTP module without relying on a generated console script being on
-`PATH`:
+The included [railpack.json](railpack.json) installs the package in Railpack's install layer, which
+is preserved in the runtime image. [railway.toml](railway.toml) then starts the Streamable HTTP
+module without relying on a generated console script being on `PATH`:
 
 ```text
 python -m pip install .
