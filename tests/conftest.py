@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.create_demo_db import create_demo_database
+from stat_agent_mcp.connectors.demo_sqlite import create_demo_database
 
 
 @pytest.fixture

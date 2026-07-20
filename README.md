@@ -23,7 +23,7 @@ or implement statistical procedures beyond the two approved tests.
 The authoritative product scope is [PROJECT_SPEC.md](PROJECT_SPEC.md). Repository contribution and
 safety rules are in [AGENTS.md](AGENTS.md).
 
-## Quick start
+## Installation
 
 Prerequisites:
 
@@ -49,6 +49,8 @@ mkdir -p .demo
 python scripts/create_demo_db.py .demo/demo.sqlite3
 ```
 
+## Local stdio usage
+
 Configure the server in the current shell:
 
 ```bash
@@ -67,7 +69,66 @@ stat-agent-mcp
 The process waits for MCP messages on stdin. Logs belong on stderr; stdout is reserved for MCP
 protocol traffic. Use `Ctrl-C` to stop a manually launched server.
 
-## MCP client configuration
+## Local HTTP usage
+
+Set the database variables above, generate a high-entropy bearer token, and start the HTTP entry
+point. `PORT` defaults to `8000` outside Railway.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+export STAT_MCP_HTTP_BEARER_TOKEN="<paste-the-generated-value>"
+export PORT=8000
+stat-agent-mcp-http
+```
+
+The public readiness endpoint is `GET http://127.0.0.1:8000/health`. MCP requests use
+`http://127.0.0.1:8000/mcp` and require `Authorization: Bearer <token>`.
+
+## Railway deployment
+
+The included [railway.toml](railway.toml) starts the installed Streamable HTTP entry point:
+
+```text
+stat-agent-mcp-http
+```
+
+Configure these Railway variables:
+
+| Variable | Recommended value | Notes |
+| --- | --- | --- |
+| `STAT_MCP_CONNECTION_NAME` | `railway_demo` | Safe public label returned to MCP clients. |
+| `STAT_MCP_SQLITE_PATH` | `/tmp/stat-agent-mcp/demo.sqlite3` | Ephemeral Option A demo database location. |
+| `PORT` | Railway-provided | The application reads this directly; do not interpolate it in the start command. |
+| `STAT_MCP_HTTP_BEARER_TOKEN` | Generate at least 32 high-entropy characters | Store as a sealed/private Railway variable. Never commit or log it. |
+
+On HTTP startup, an absent SQLite database is generated deterministically in a temporary file beside
+the configured target, validated, and atomically published. Parent directories are created as
+needed. A valid existing database is reused. Railway's `/tmp` storage is ephemeral, so the demo
+database is regenerated on every fresh deployment. This option is intended for demonstrations and
+evaluation rather than persistent user data.
+
+### Authentication
+
+The Streamable HTTP MCP endpoint is `/mcp` and requires this header:
+
+```text
+Authorization: Bearer <STAT_MCP_HTTP_BEARER_TOKEN>
+```
+
+Generate a token locally with a cryptographically secure generator, for example:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copy only the generated value into Railway's sealed/private variable configuration. Do not put it in
+`railway.toml`, `.env.example`, source code, client logs, or a committed `.env` file. Missing,
+malformed, and incorrect authorization all receive the same `401` response. The shared token is
+controlled-demo authentication, not OAuth/OIDC, per-user authorization, or a production identity
+system. The endpoint must not be considered publicly safe without authentication. Railway checks
+the unauthenticated `/health` route, which returns only `{"status":"ok"}`.
+
+## Example MCP client connections
 
 MCP clients use different configuration locations, but a typical stdio entry looks like this:
 
@@ -93,6 +154,25 @@ put credentials or private connection details in the safe `STAT_MCP_CONNECTION_N
 The server does not automatically load `.env` files. [.env.example](.env.example) documents the
 available variables; provide them through the launching shell or the MCP client's environment
 configuration.
+
+For Streamable HTTP, the official Python client accepts an authenticated `httpx.AsyncClient`:
+
+```python
+import httpx
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+headers = {"Authorization": "Bearer <paste-the-generated-value>"}
+
+async def connect() -> None:
+    async with httpx.AsyncClient(headers=headers) as http_client:
+        async with streamable_http_client(
+            "https://your-service.up.railway.app/mcp",
+            http_client=http_client,
+        ) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+```
 
 ## Demo flow
 
@@ -238,13 +318,20 @@ counted as unselected-group exclusions.
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
 | `STAT_MCP_CONNECTION_NAME` | No | `demo_sqlite` | Safe public label returned to MCP clients. |
-| `STAT_MCP_SQLITE_PATH` | Yes | none | Internal path to an existing SQLite database. |
+| `STAT_MCP_SQLITE_PATH` | Yes | none | Internal SQLite path; HTTP startup creates demo data when it is absent. |
 | `STAT_MCP_DEFAULT_ROW_LIMIT` | No | `1000` | Limit used when a tool request omits `max_rows`. |
 | `STAT_MCP_HARD_ROW_LIMIT` | No | `10000` | Absolute maximum rows retained by an extraction. |
+| `STAT_MCP_HTTP_BEARER_TOKEN` | HTTP only | none | Secret shared bearer token; at least 32 visible ASCII characters. |
+| `PORT` | HTTP only | `8000` | TCP port used by the Streamable HTTP entry point. Railway supplies this value. |
 
-Both limits must be positive, and the default cannot exceed the hard limit. The server opens only an
-existing database; a missing path produces a structured connection failure and does not create a
-file.
+Both limits must be positive, and the default cannot exceed the hard limit. The stdio entry point
+still requires an existing database and never bootstraps one. The HTTP entry point validates and
+reuses an existing SQLite database or atomically generates the deterministic demo database when the
+configured path is absent.
+
+The stdio entry point does not read or require `STAT_MCP_HTTP_BEARER_TOKEN`. The HTTP entry point
+fails before serving if the token is missing, blank, too short, contains whitespace or control
+characters, or is not visible ASCII.
 
 The connector request contract reserves an optional timeout value for future engines. SQLite query
 timeout enforcement is limited in this MVP and is not exposed as a public configuration setting.
@@ -273,7 +360,9 @@ Responsibilities are deliberately separated:
 - `statistics/` accepts pandas or ordinary Python values and imports no database or MCP objects.
 - `models/` defines structured public contracts.
 - `tools/` translates domain results and safe errors at the MCP boundary.
-- `scripts/` creates deterministic demonstration fixtures and is not server-facing.
+- `health.py` registers the public constant-time readiness route without database access.
+- `connectors/demo_sqlite.py` owns deterministic SQLite demo generation and atomic HTTP bootstrap.
+- `scripts/create_demo_db.py` is a thin local CLI around the installed generator.
 - `tests/` contains unit and seeded SQLite integration coverage.
 
 A future database engine should require a connector implementation, registration/configuration,
@@ -322,8 +411,10 @@ commit or push changes unless the repository owner explicitly requests it.
 - No confidence intervals are returned in the MVP.
 - No one-sided alternatives, paired tests, regression, ANOVA, chi-square, Mann-Whitney U, or other
   procedures are implemented.
-- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, or deployment
-  infrastructure is included.
+- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, OAuth/OIDC,
+  per-user authorization, or persistent deployment storage is included.
+- The Railway deployment is intended for demonstrations and evaluation. PostgreSQL remains a future
+  milestone for durable production data.
 
 Statistical significance is evidence against a null hypothesis under stated assumptions. It does not
 establish causality, practical importance, or a business decision.
@@ -335,11 +426,10 @@ This repository was developed as a sequence of reviewed vertical slices with Cod
 | Area | Contribution record |
 | --- | --- |
 | Architecture | Codex proposed the connector boundary, synchronous SQLite MVP, deterministic first-N extraction, structured errors, profiling rules, and statistical module separation in response to [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md). |
-| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, and package metadata. |
-| Generated tests | Codex generated the unit and seeded SQLite integration tests, including maintained-library references, effect sizes, limits, exclusions, invalid inputs, MCP contracts, and secret safety. |
+| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, package metadata, and authenticated Railway HTTP deployment. |
+| Generated tests | Codex generated the unit and seeded SQLite integration tests, including maintained-library references, effect sizes, limits, exclusions, invalid inputs, MCP contracts, secret safety, and installed stdio/HTTP smoke coverage. |
 | Human decisions | The human developer supplied and approved the product specification and repository rules, selected the milestone sequence, reviewed each milestone handoff, and explicitly authorized commits and pushes. |
 | Important prompts | The initial architecture task is preserved in [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md); implementation followed approved Milestones 1–6. Git history preserves the resulting development checkpoints. |
 
 No credentials, authentication tokens, private Codex transcripts, or fabricated session identifiers
 are stored in this record.
-

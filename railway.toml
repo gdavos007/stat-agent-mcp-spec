@@ -1,0 +1,3 @@
+[deploy]
+startCommand = "stat-agent-mcp-http"
+healthcheckPath = "/health"

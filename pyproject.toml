@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 stat-agent-mcp = "stat_agent_mcp.server:main"
+stat-agent-mcp-http = "stat_agent_mcp.http_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/stat_agent_mcp"]
