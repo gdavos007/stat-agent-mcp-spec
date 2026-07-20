@@ -42,13 +42,9 @@ def test_installed_server_operates_end_to_end_over_stdio(
         assert entry_point.is_file(), "Installed stat-agent-mcp entry point was not found."
 
         database_path = str(demo_database_path)
-        source_path = Path(__file__).parents[2] / "src"
         server_parameters = StdioServerParameters(
             command=str(entry_point),
             env={
-                # Match pytest's declared src-layout import path when the active
-                # runtime skips Hatchling's hidden editable-install .pth file.
-                "PYTHONPATH": str(source_path),
                 "STAT_MCP_CONNECTION_NAME": "stdio_demo",
                 "STAT_MCP_SQLITE_PATH": database_path,
                 "STAT_MCP_DEFAULT_ROW_LIMIT": "100",
