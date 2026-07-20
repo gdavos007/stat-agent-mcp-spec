@@ -274,15 +274,14 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
 
 
 def test_installed_http_server_handles_sigterm_cleanly(tmp_path: Path) -> None:
-    """Verify Railway's normal termination signal reaches Uvicorn's graceful path."""
+    """Verify Railway's module command and normal termination signal."""
 
     async def exercise_sigterm() -> None:
-        entry_point = Path(sys.executable).with_name("stat-agent-mcp-http")
-        assert entry_point.is_file(), "Installed stat-agent-mcp-http entry point was not found."
-
         port = _available_tcp_port()
         process = await asyncio.create_subprocess_exec(
-            str(entry_point),
+            sys.executable,
+            "-m",
+            "stat_agent_mcp.http_server",
             cwd=tmp_path,
             env={
                 "PORT": str(port),

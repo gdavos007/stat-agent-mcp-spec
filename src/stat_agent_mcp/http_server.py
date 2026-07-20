@@ -110,3 +110,7 @@ def main() -> None:
         uvicorn.run(application, host=HTTP_HOST, port=port)
     finally:
         signal.signal(signal.SIGTERM, previous_sigterm_handler)
+
+
+if __name__ == "__main__":
+    main()

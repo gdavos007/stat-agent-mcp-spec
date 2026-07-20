@@ -1,3 +1,6 @@
+[build]
+buildCommand = "python -m pip install ."
+
 [deploy]
-startCommand = "stat-agent-mcp-http"
+startCommand = "python -m stat_agent_mcp.http_server"
 healthcheckPath = "/health"

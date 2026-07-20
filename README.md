@@ -86,10 +86,13 @@ The public readiness endpoint is `GET http://127.0.0.1:8000/health`. MCP request
 
 ## Railway deployment
 
-The included [railway.toml](railway.toml) starts the installed Streamable HTTP entry point:
+The included [railway.toml](railway.toml) explicitly installs the package during Railway's build,
+then starts the Streamable HTTP module without relying on a generated console script being on
+`PATH`:
 
 ```text
-stat-agent-mcp-http
+python -m pip install .
+python -m stat_agent_mcp.http_server
 ```
 
 Configure these Railway variables:
