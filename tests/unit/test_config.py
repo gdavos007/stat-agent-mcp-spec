@@ -5,7 +5,7 @@ from collections.abc import Mapping
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from stat_agent_mcp.config import Settings, load_settings
+from stat_agent_mcp.config import Settings, load_http_port, load_settings
 
 SENSITIVE_PATH = "/Users/example/private/customer-data.sqlite3"
 
@@ -76,6 +76,23 @@ def test_non_integer_limit_reports_only_the_environment_variable_name() -> None:
 
     with pytest.raises(ValueError, match="STAT_MCP_DEFAULT_ROW_LIMIT") as caught:
         load_settings(valid_environment(STAT_MCP_DEFAULT_ROW_LIMIT=invalid_value))
+
+    assert invalid_value not in str(caught.value)
+    assert SENSITIVE_PATH not in str(caught.value)
+
+
+def test_http_port_uses_railway_environment_value() -> None:
+    assert load_http_port({"PORT": "54321"}) == 54321
+
+
+def test_http_port_defaults_for_local_execution() -> None:
+    assert load_http_port({}) == 8000
+
+
+@pytest.mark.parametrize("invalid_value", ["not-a-port-secret", "0", "65536"])
+def test_invalid_http_port_does_not_echo_its_value(invalid_value: str) -> None:
+    with pytest.raises(ValueError, match="PORT") as caught:
+        load_http_port({"PORT": invalid_value})
 
     assert invalid_value not in str(caught.value)
     assert SENSITIVE_PATH not in str(caught.value)

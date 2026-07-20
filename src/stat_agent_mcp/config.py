@@ -13,6 +13,8 @@ CONNECTION_NAME_ENV = "STAT_MCP_CONNECTION_NAME"
 SQLITE_PATH_ENV = "STAT_MCP_SQLITE_PATH"
 DEFAULT_ROW_LIMIT_ENV = "STAT_MCP_DEFAULT_ROW_LIMIT"
 HARD_ROW_LIMIT_ENV = "STAT_MCP_HARD_ROW_LIMIT"
+HTTP_PORT_ENV = "PORT"
+DEFAULT_HTTP_PORT = 8000
 
 
 class Settings(BaseModel):
@@ -46,6 +48,21 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         default_row_limit=_positive_integer(source, DEFAULT_ROW_LIMIT_ENV, default=1_000),
         hard_row_limit=_positive_integer(source, HARD_ROW_LIMIT_ENV, default=10_000),
     )
+
+
+def load_http_port(environ: Mapping[str, str] | None = None) -> int:
+    """Load Railway's HTTP port without echoing an invalid value."""
+    source = os.environ if environ is None else environ
+    raw_value = source.get(HTTP_PORT_ENV)
+    if raw_value is None:
+        return DEFAULT_HTTP_PORT
+    try:
+        port = int(raw_value)
+    except ValueError as error:
+        raise ValueError(f"environment variable {HTTP_PORT_ENV} must be an integer") from error
+    if not 1 <= port <= 65_535:
+        raise ValueError(f"environment variable {HTTP_PORT_ENV} must be between 1 and 65535")
+    return port
 
 
 def _required_value(environ: Mapping[str, str], name: str) -> str:

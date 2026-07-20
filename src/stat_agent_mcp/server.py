@@ -12,10 +12,23 @@ from stat_agent_mcp.tools.profile_table import register_profile_table
 from stat_agent_mcp.tools.run_test import register_run_test
 
 
-def create_server(settings: Settings | None = None) -> FastMCP:
+def create_server(
+    settings: Settings | None = None,
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    json_response: bool = False,
+    stateless_http: bool = False,
+) -> FastMCP:
     """Compose the MCP server and its completed MVP tool slices."""
     resolved_settings = load_settings() if settings is None else settings
-    server = FastMCP(name=resolved_settings.connection_name)
+    server = FastMCP(
+        name=resolved_settings.connection_name,
+        host=host,
+        port=port,
+        json_response=json_response,
+        stateless_http=stateless_http,
+    )
     connector = SQLiteConnector(resolved_settings.sqlite_path())
     register_list_tables(server, connector, resolved_settings.connection_name)
     extraction_service = ExtractionService(
