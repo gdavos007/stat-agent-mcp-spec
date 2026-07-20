@@ -14,6 +14,7 @@ SQLITE_PATH_ENV = "STAT_MCP_SQLITE_PATH"
 DEFAULT_ROW_LIMIT_ENV = "STAT_MCP_DEFAULT_ROW_LIMIT"
 HARD_ROW_LIMIT_ENV = "STAT_MCP_HARD_ROW_LIMIT"
 HTTP_PORT_ENV = "PORT"
+HTTP_BEARER_TOKEN_ENV = "STAT_MCP_HTTP_BEARER_TOKEN"
 DEFAULT_HTTP_PORT = 8000
 
 
@@ -63,6 +64,21 @@ def load_http_port(environ: Mapping[str, str] | None = None) -> int:
     if not 1 <= port <= 65_535:
         raise ValueError(f"environment variable {HTTP_PORT_ENV} must be between 1 and 65535")
     return port
+
+
+def load_http_bearer_token(environ: Mapping[str, str] | None = None) -> SecretStr:
+    """Load a high-entropy HTTP bearer token without retaining a public representation."""
+    source = os.environ if environ is None else environ
+    value = _required_value(source, HTTP_BEARER_TOKEN_ENV)
+    if (
+        not 32 <= len(value) <= 512
+        or not value.isascii()
+        or any(not 33 <= ord(character) <= 126 for character in value)
+    ):
+        raise ValueError(
+            f"environment variable {HTTP_BEARER_TOKEN_ENV} must be a valid high-entropy token"
+        )
+    return SecretStr(value)
 
 
 def _required_value(environ: Mapping[str, str], name: str) -> str:

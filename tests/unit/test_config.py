@@ -5,7 +5,12 @@ from collections.abc import Mapping
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from stat_agent_mcp.config import Settings, load_http_port, load_settings
+from stat_agent_mcp.config import (
+    Settings,
+    load_http_bearer_token,
+    load_http_port,
+    load_settings,
+)
 
 SENSITIVE_PATH = "/Users/example/private/customer-data.sqlite3"
 
@@ -96,6 +101,38 @@ def test_invalid_http_port_does_not_echo_its_value(invalid_value: str) -> None:
 
     assert invalid_value not in str(caught.value)
     assert SENSITIVE_PATH not in str(caught.value)
+
+
+def test_http_bearer_token_is_secret_bearing() -> None:
+    token_value = "test-only-7VvQw3j9L2m6Nc8Rx4Za1Bp5Ty0Hd7Ks"
+
+    token = load_http_bearer_token({"STAT_MCP_HTTP_BEARER_TOKEN": token_value})
+
+    assert token.get_secret_value() == token_value
+    assert token_value not in repr(token)
+    assert token_value not in str(token)
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        {},
+        {"STAT_MCP_HTTP_BEARER_TOKEN": "   "},
+        {"STAT_MCP_HTTP_BEARER_TOKEN": "test-only-too-short"},
+        {"STAT_MCP_HTTP_BEARER_TOKEN": "test-only-token-with embedded whitespace-123456"},
+        {"STAT_MCP_HTTP_BEARER_TOKEN": "test-only-token-with-control-123456789\x00"},
+    ],
+)
+def test_http_bearer_token_fails_closed_without_exposing_values(
+    environment: Mapping[str, str],
+) -> None:
+    supplied_value = environment.get("STAT_MCP_HTTP_BEARER_TOKEN", "")
+
+    with pytest.raises(ValueError, match="STAT_MCP_HTTP_BEARER_TOKEN") as caught:
+        load_http_bearer_token(environment)
+
+    if supplied_value.strip():
+        assert supplied_value not in str(caught.value)
 
 
 def test_invalid_public_connection_name_is_rejected() -> None:

@@ -82,14 +82,31 @@ Configure these Railway variables:
 | `STAT_MCP_CONNECTION_NAME` | `railway_demo` | Safe public label returned to MCP clients. |
 | `STAT_MCP_SQLITE_PATH` | `/tmp/stat-agent-mcp/demo.sqlite3` | Ephemeral Option A demo database location. |
 | `PORT` | Railway-provided | The application reads this directly; do not interpolate it in the start command. |
+| `STAT_MCP_HTTP_BEARER_TOKEN` | Generate at least 32 high-entropy characters | Store as a sealed/private Railway variable. Never commit or log it. |
 
 On HTTP startup, an absent SQLite database is generated deterministically in a temporary file beside
 the configured target, validated, and atomically published. Parent directories are created as
 needed. A valid existing database is reused. Railway's `/tmp` storage is ephemeral, so this option
 is intended for reproducible demonstrations rather than persistent user data.
 
-The Streamable HTTP MCP endpoint is `/mcp`. This milestone does not provide authentication or a
-health-check route; do not expose the service as a trusted production endpoint yet.
+The Streamable HTTP MCP endpoint is `/mcp` and requires this header:
+
+```text
+Authorization: Bearer <STAT_MCP_HTTP_BEARER_TOKEN>
+```
+
+Generate a token locally with a cryptographically secure generator, for example:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copy only the generated value into Railway's sealed/private variable configuration. Do not put it in
+`railway.toml`, `.env.example`, source code, client logs, or a committed `.env` file. Missing,
+malformed, and incorrect authorization all receive the same `401` response. The shared token is
+controlled-demo authentication, not OAuth/OIDC, per-user authorization, or a production identity
+system. The endpoint must not be considered publicly safe without authentication. No health-check
+route exists yet.
 
 ## MCP client configuration
 
@@ -265,11 +282,17 @@ counted as unselected-group exclusions.
 | `STAT_MCP_SQLITE_PATH` | Yes | none | Internal SQLite path; HTTP startup creates demo data when it is absent. |
 | `STAT_MCP_DEFAULT_ROW_LIMIT` | No | `1000` | Limit used when a tool request omits `max_rows`. |
 | `STAT_MCP_HARD_ROW_LIMIT` | No | `10000` | Absolute maximum rows retained by an extraction. |
+| `STAT_MCP_HTTP_BEARER_TOKEN` | HTTP only | none | Secret shared bearer token; at least 32 visible ASCII characters. |
+| `PORT` | HTTP only | `8000` | TCP port used by the Streamable HTTP entry point. Railway supplies this value. |
 
 Both limits must be positive, and the default cannot exceed the hard limit. The stdio entry point
 still requires an existing database and never bootstraps one. The HTTP entry point validates and
 reuses an existing SQLite database or atomically generates the deterministic demo database when the
 configured path is absent.
+
+The stdio entry point does not read or require `STAT_MCP_HTTP_BEARER_TOKEN`. The HTTP entry point
+fails before serving if the token is missing, blank, too short, contains whitespace or control
+characters, or is not visible ASCII.
 
 The connector request contract reserves an optional timeout value for future engines. SQLite query
 timeout enforcement is limited in this MVP and is not exposed as a public configuration setting.
@@ -348,8 +371,8 @@ commit or push changes unless the repository owner explicitly requests it.
 - No confidence intervals are returned in the MVP.
 - No one-sided alternatives, paired tests, regression, ANOVA, chi-square, Mann-Whitney U, or other
   procedures are implemented.
-- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, authentication,
-  persistent deployment storage, or deployment health endpoint is included.
+- No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, OAuth/OIDC,
+  per-user authorization, persistent deployment storage, or deployment health endpoint is included.
 
 Statistical significance is evidence against a null hypothesis under stated assumptions. It does not
 establish causality, practical importance, or a business decision.
