@@ -39,14 +39,14 @@ def _available_tcp_port() -> int:
 
 
 async def _wait_until_ready(process: asyncio.subprocess.Process, url: str) -> httpx.Response:
-    """Poll for the protected endpoint's 401 response within a fixed deadline."""
+    """Poll the public health endpoint within a fixed deadline."""
     async with httpx.AsyncClient(timeout=0.5, trust_env=False) as client:
         for _ in range(60):
             if process.returncode is not None:
                 raise AssertionError("Installed HTTP server exited before becoming ready.")
             try:
-                response = await client.post(url)
-                if response.status_code == 401:
+                response = await client.get(url)
+                if response.status_code == 200:
                     return response
             except httpx.TransportError:
                 pass
@@ -88,6 +88,7 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
         port = _available_tcp_port()
         database_path = tmp_path / "bootstrap" / "demo.sqlite3"
         endpoint = f"http://127.0.0.1:{port}/mcp"
+        health_endpoint = f"http://127.0.0.1:{port}/health"
         server_environment = {
             "PORT": str(port),
             "STAT_MCP_CONNECTION_NAME": "http_demo",
@@ -105,7 +106,7 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
         observed_mcp: list[object] = []
 
         try:
-            readiness = await _wait_until_ready(process, endpoint)
+            readiness = await _wait_until_ready(process, health_endpoint)
             observed_http.append(
                 {
                     "status": readiness.status_code,
@@ -113,8 +114,20 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
                     "body": readiness.text,
                 }
             )
-            assert readiness.headers["www-authenticate"] == "Bearer"
-            assert readiness.json() == {"error": "unauthorized"}
+            assert readiness.json() == {"status": "ok"}
+
+            async with httpx.AsyncClient(timeout=2, trust_env=False) as public_client:
+                unauthorized = await public_client.post(endpoint)
+            observed_http.append(
+                {
+                    "status": unauthorized.status_code,
+                    "headers": dict(unauthorized.headers),
+                    "body": unauthorized.text,
+                }
+            )
+            assert unauthorized.status_code == 401
+            assert unauthorized.headers["www-authenticate"] == "Bearer"
+            assert unauthorized.json() == {"error": "unauthorized"}
 
             async with (
                 httpx.AsyncClient(
@@ -241,6 +254,9 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
         stdout = stdout_bytes.decode(errors="replace")
         stderr = stderr_bytes.decode(errors="replace")
         assert "Traceback" not in stderr
+        assert "HTTP server starting host=0.0.0.0" in stderr
+        assert "Demo database bootstrap successful mode=created" in stderr
+        assert "HTTP server ready" in stderr
         private_values = [
             str(database_path),
             TEST_BEARER_TOKEN,
@@ -255,3 +271,39 @@ def test_installed_server_operates_end_to_end_over_streamable_http(tmp_path: Pat
         _assert_private_values_absent(private_values, stderr)
 
     asyncio.run(exercise_server())
+
+
+def test_installed_http_server_handles_sigterm_cleanly(tmp_path: Path) -> None:
+    """Verify Railway's normal termination signal reaches Uvicorn's graceful path."""
+
+    async def exercise_sigterm() -> None:
+        entry_point = Path(sys.executable).with_name("stat-agent-mcp-http")
+        assert entry_point.is_file(), "Installed stat-agent-mcp-http entry point was not found."
+
+        port = _available_tcp_port()
+        process = await asyncio.create_subprocess_exec(
+            str(entry_point),
+            cwd=tmp_path,
+            env={
+                "PORT": str(port),
+                "STAT_MCP_CONNECTION_NAME": "sigterm_demo",
+                "STAT_MCP_SQLITE_PATH": str(tmp_path / "sigterm" / "demo.sqlite3"),
+                "STAT_MCP_HTTP_BEARER_TOKEN": TEST_BEARER_TOKEN,
+            },
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            await _wait_until_ready(process, f"http://127.0.0.1:{port}/health")
+            process.send_signal(signal.SIGTERM)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=10)
+        finally:
+            if process.returncode is None:
+                await _stop_process(process)
+
+        assert process.returncode == 0
+        output = f"{stdout_bytes.decode(errors='replace')}{stderr_bytes.decode(errors='replace')}"
+        assert "Traceback" not in output
+        assert output.count("Shutting down") == 1
+
+    asyncio.run(exercise_sigterm())

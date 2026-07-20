@@ -23,7 +23,7 @@ or implement statistical procedures beyond the two approved tests.
 The authoritative product scope is [PROJECT_SPEC.md](PROJECT_SPEC.md). Repository contribution and
 safety rules are in [AGENTS.md](AGENTS.md).
 
-## Quick start
+## Installation
 
 Prerequisites:
 
@@ -49,6 +49,8 @@ mkdir -p .demo
 python scripts/create_demo_db.py .demo/demo.sqlite3
 ```
 
+## Local stdio usage
+
 Configure the server in the current shell:
 
 ```bash
@@ -66,6 +68,21 @@ stat-agent-mcp
 
 The process waits for MCP messages on stdin. Logs belong on stderr; stdout is reserved for MCP
 protocol traffic. Use `Ctrl-C` to stop a manually launched server.
+
+## Local HTTP usage
+
+Set the database variables above, generate a high-entropy bearer token, and start the HTTP entry
+point. `PORT` defaults to `8000` outside Railway.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+export STAT_MCP_HTTP_BEARER_TOKEN="<paste-the-generated-value>"
+export PORT=8000
+stat-agent-mcp-http
+```
+
+The public readiness endpoint is `GET http://127.0.0.1:8000/health`. MCP requests use
+`http://127.0.0.1:8000/mcp` and require `Authorization: Bearer <token>`.
 
 ## Railway deployment
 
@@ -86,8 +103,11 @@ Configure these Railway variables:
 
 On HTTP startup, an absent SQLite database is generated deterministically in a temporary file beside
 the configured target, validated, and atomically published. Parent directories are created as
-needed. A valid existing database is reused. Railway's `/tmp` storage is ephemeral, so this option
-is intended for reproducible demonstrations rather than persistent user data.
+needed. A valid existing database is reused. Railway's `/tmp` storage is ephemeral, so the demo
+database is regenerated on every fresh deployment. This option is intended for demonstrations and
+evaluation rather than persistent user data.
+
+### Authentication
 
 The Streamable HTTP MCP endpoint is `/mcp` and requires this header:
 
@@ -105,10 +125,10 @@ Copy only the generated value into Railway's sealed/private variable configurati
 `railway.toml`, `.env.example`, source code, client logs, or a committed `.env` file. Missing,
 malformed, and incorrect authorization all receive the same `401` response. The shared token is
 controlled-demo authentication, not OAuth/OIDC, per-user authorization, or a production identity
-system. The endpoint must not be considered publicly safe without authentication. No health-check
-route exists yet.
+system. The endpoint must not be considered publicly safe without authentication. Railway checks
+the unauthenticated `/health` route, which returns only `{"status":"ok"}`.
 
-## MCP client configuration
+## Example MCP client connections
 
 MCP clients use different configuration locations, but a typical stdio entry looks like this:
 
@@ -134,6 +154,25 @@ put credentials or private connection details in the safe `STAT_MCP_CONNECTION_N
 The server does not automatically load `.env` files. [.env.example](.env.example) documents the
 available variables; provide them through the launching shell or the MCP client's environment
 configuration.
+
+For Streamable HTTP, the official Python client accepts an authenticated `httpx.AsyncClient`:
+
+```python
+import httpx
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+
+headers = {"Authorization": "Bearer <paste-the-generated-value>"}
+
+async def connect() -> None:
+    async with httpx.AsyncClient(headers=headers) as http_client:
+        async with streamable_http_client(
+            "https://your-service.up.railway.app/mcp",
+            http_client=http_client,
+        ) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+```
 
 ## Demo flow
 
@@ -321,6 +360,7 @@ Responsibilities are deliberately separated:
 - `statistics/` accepts pandas or ordinary Python values and imports no database or MCP objects.
 - `models/` defines structured public contracts.
 - `tools/` translates domain results and safe errors at the MCP boundary.
+- `health.py` registers the public constant-time readiness route without database access.
 - `connectors/demo_sqlite.py` owns deterministic SQLite demo generation and atomic HTTP bootstrap.
 - `scripts/create_demo_db.py` is a thin local CLI around the installed generator.
 - `tests/` contains unit and seeded SQLite integration coverage.
@@ -372,7 +412,9 @@ commit or push changes unless the repository owner explicitly requests it.
 - No one-sided alternatives, paired tests, regression, ANOVA, chi-square, Mann-Whitney U, or other
   procedures are implemented.
 - No natural-language-to-SQL, arbitrary SQL, server-side LLM, causal inference, UI, OAuth/OIDC,
-  per-user authorization, persistent deployment storage, or deployment health endpoint is included.
+  per-user authorization, or persistent deployment storage is included.
+- The Railway deployment is intended for demonstrations and evaluation. PostgreSQL remains a future
+  milestone for durable production data.
 
 Statistical significance is evidence against a null hypothesis under stated assumptions. It does not
 establish causality, practical importance, or a business decision.
@@ -384,8 +426,8 @@ This repository was developed as a sequence of reviewed vertical slices with Cod
 | Area | Contribution record |
 | --- | --- |
 | Architecture | Codex proposed the connector boundary, synchronous SQLite MVP, deterministic first-N extraction, structured errors, profiling rules, and statistical module separation in response to [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md). |
-| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, package metadata, and Railway HTTP bootstrap configuration. |
-| Generated tests | Codex generated the unit and seeded SQLite integration tests, including maintained-library references, effect sizes, limits, exclusions, invalid inputs, MCP contracts, and secret safety. |
+| Generated/edited code | Codex substantially generated and edited the Python package scaffold, safe configuration, connector, extraction, profiling, statistical services, MCP adapters, demo generator, package metadata, and authenticated Railway HTTP deployment. |
+| Generated tests | Codex generated the unit and seeded SQLite integration tests, including maintained-library references, effect sizes, limits, exclusions, invalid inputs, MCP contracts, secret safety, and installed stdio/HTTP smoke coverage. |
 | Human decisions | The human developer supplied and approved the product specification and repository rules, selected the milestone sequence, reviewed each milestone handoff, and explicitly authorized commits and pushes. |
 | Important prompts | The initial architecture task is preserved in [ARCHITECTURE_PROMPT.md](ARCHITECTURE_PROMPT.md); implementation followed approved Milestones 1–6. Git history preserves the resulting development checkpoints. |
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 import pytest
@@ -142,3 +143,53 @@ def test_streamable_http_application_rejects_missing_authentication(
     assert response.json() == {"error": "unauthorized"}
     assert response.headers["www-authenticate"] == "Bearer"
     assert HTTP_TOKEN not in response.text
+
+
+def test_health_endpoint_is_public_and_minimal(demo_database_path: Path) -> None:
+    settings = Settings(
+        connection_name="health_demo",
+        sqlite_path_secret=SecretStr(str(demo_database_path)),
+        default_row_limit=100,
+        hard_row_limit=1_000,
+    )
+    application = create_http_application(
+        settings,
+        port=54321,
+        bearer_token=SecretStr(HTTP_TOKEN),
+    )
+
+    with TestClient(application) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert set(response.json()) == {"status"}
+
+
+def test_http_startup_logs_lifecycle_without_private_configuration(
+    demo_database_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings = Settings(
+        connection_name="log_demo",
+        sqlite_path_secret=SecretStr(str(demo_database_path)),
+        default_row_limit=100,
+        hard_row_limit=1_000,
+    )
+
+    with caplog.at_level(logging.INFO, logger="stat_agent_mcp.http_server"):
+        application = create_http_application(
+            settings,
+            port=54321,
+            bearer_token=SecretStr(HTTP_TOKEN),
+        )
+        with TestClient(application):
+            pass
+
+    assert caplog.messages == [
+        "HTTP server starting host=0.0.0.0 port=54321 mcp_endpoint=/mcp",
+        "Demo database bootstrap successful mode=reused",
+        "HTTP server ready",
+    ]
+    assert str(demo_database_path) not in caplog.text
+    assert HTTP_TOKEN not in caplog.text
