@@ -86,9 +86,9 @@ The public readiness endpoint is `GET http://127.0.0.1:8000/health`. MCP request
 
 ## Railway deployment
 
-The included [railpack.json](railpack.json) installs the package in Railpack's install layer, which
-is preserved in the runtime image. [railway.toml](railway.toml) then starts the Streamable HTTP
-module without relying on a generated console script being on `PATH`:
+Configure `RAILPACK_INSTALL_CMD` in Railway so Railpack installs the project in its generated
+install layer. The included [railway.toml](railway.toml) then starts the Streamable HTTP module
+without relying on a generated console script being on `PATH`:
 
 ```text
 python -m pip install .
@@ -99,6 +99,7 @@ Configure these Railway variables:
 
 | Variable | Recommended value | Notes |
 | --- | --- | --- |
+| `RAILPACK_INSTALL_CMD` | `python -m pip install .` | Required Railpack build configuration; installs the package into the runtime environment. |
 | `STAT_MCP_CONNECTION_NAME` | `railway_demo` | Safe public label returned to MCP clients. |
 | `STAT_MCP_SQLITE_PATH` | `/tmp/stat-agent-mcp/demo.sqlite3` | Ephemeral Option A demo database location. |
 | `PORT` | Railway-provided | The application reads this directly; do not interpolate it in the start command. |
