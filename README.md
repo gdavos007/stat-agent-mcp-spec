@@ -144,7 +144,7 @@ MCP clients use different configuration locations, but a typical stdio entry loo
     "statistical-testing": {
       "command": "/absolute/path/to/stat-agent-mcp-spec/.venv/bin/stat-agent-mcp",
       "env": {
-        "STAT_MCP_CONNECTION_NAME": "demo_sqlite",
+        "STAT_MCP_CONNECTION_NAME": "railway_demo",
         "STAT_MCP_SQLITE_PATH": "/absolute/path/to/stat-agent-mcp-spec/.demo/demo.sqlite3",
         "STAT_MCP_DEFAULT_ROW_LIMIT": "1000",
         "STAT_MCP_HARD_ROW_LIMIT": "10000"
