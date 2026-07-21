@@ -54,7 +54,7 @@ python scripts/create_demo_db.py .demo/demo.sqlite3
 Configure the server in the current shell:
 
 ```bash
-export STAT_MCP_CONNECTION_NAME=demo_sqlite
+export STAT_MCP_CONNECTION_NAME=railway_demo
 export STAT_MCP_SQLITE_PATH="$PWD/.demo/demo.sqlite3"
 export STAT_MCP_DEFAULT_ROW_LIMIT=1000
 export STAT_MCP_HARD_ROW_LIMIT=10000
