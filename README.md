@@ -323,7 +323,7 @@ counted as unselected-group exclusions.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `STAT_MCP_CONNECTION_NAME` | No | `demo_sqlite` | Safe public label returned to MCP clients. |
+| `STAT_MCP_CONNECTION_NAME` | No | `railway_demo` | Safe public label returned to MCP clients. |
 | `STAT_MCP_SQLITE_PATH` | Yes | none | Internal SQLite path; HTTP startup creates demo data when it is absent. |
 | `STAT_MCP_DEFAULT_ROW_LIMIT` | No | `1000` | Limit used when a tool request omits `max_rows`. |
 | `STAT_MCP_HARD_ROW_LIMIT` | No | `10000` | Absolute maximum rows retained by an extraction. |
